@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三角形四心動態視覺化 (Triangle Centers Visualizer)</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --surface-color: #1e293b;
+            --surface-hover: #334155;
+            --border-color: #475569;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            
+            --color-g: #ff9800; /* 重心 Orange */
+            --color-h: #2196f3; /* 垂心 Blue */
+            --color-o: #4caf50; /* 外心 Green */
+            --color-i: #9c27b0; /* 內心 Purple */
+            --color-triangle: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 1rem 2rem;
+            background-color: var(--surface-color);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Canvas Area */
+        .canvas-section {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+            touch-action: none; /* Prevent scrolling on touch */
+        }
+        
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        /* Sidebar Dashboard */
+        .dashboard {
+            width: 420px;
+            background-color: var(--surface-color);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        .panel {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Toggles */
+        .toggles-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .toggle-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 0.9rem;
+            user-select: none;
+        }
+
+        .toggle-label input {
+            display: none;
+        }
+
+        .checkmark {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            margin-right: 10px;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .toggle-label input:checked + .checkmark::after {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 1px;
+            width: 4px;
+            height: 8px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        /* Toggle Colors */
+        .toggle-g input:checked + .checkmark { background-color: var(--color-g); border-color: var(--color-g); }
+        .toggle-h input:checked + .checkmark { background-color: var(--color-h); border-color: var(--color-h); }
+        .toggle-o input:checked + .checkmark { background-color: var(--color-o); border-color: var(--color-o); }
+        .toggle-i input:checked + .checkmark { background-color: var(--color-i); border-color: var(--color-i); }
+
+        /* Presets */
+        .presets-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        button {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background-color: var(--surface-hover);
+            border-color: var(--text-muted);
+        }
+        
+        button:active {
+            transform: scale(0.97);
+        }
+
+        /* Insights & Stats */
+        .insight-card {
+            background-color: rgba(33, 150, 243, 0.1);
+            border: 1px solid var(--color-h);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .insight-title {
+            font-weight: 600;
+            color: var(--color-h);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .insight-text {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        .stat-col {
+            background-color: var(--bg-color);
+            padding: 0.75rem 0.5rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .stat-vertex { font-weight: bold; margin-bottom: 0.25rem; font-size: 1rem; }
+        .stat-val { color: var(--text-muted); margin-bottom: 0.25rem; }
+
+        .classification {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--color-g);
+            text-align: center;
+            padding: 0.5rem;
+            background: rgba(255, 152, 0, 0.1);
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 900px) {
+            .main-container {
+                flex-direction: column;
+            }
+            .dashboard {
+                width: 100%;
+                height: 50vh;
+                border-left: none;
+                border-top: 1px solid var(--border-color);
+            }
+        }
+        
+        /* Loading Overlay */
+        #coord-tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>📐 三角形四心視覺化 (Triangle Centers)</h1>
+    </header>
+
+    <div class="main-container">
+        <!-- Canvas Section -->
+        <div class="canvas-section" id="canvas-container">
+            <canvas id="geometryCanvas"></canvas>
+            <div id="coord-tooltip"></div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <aside class="dashboard">
+            
+            <!-- Dynamic Information -->
+            <div class="panel">
+                <div class="panel-title">即時狀態 (Real-time Stats)</div>
+                <div class="classification" id="lbl-classification">載入中...</div>
+                
+                <div class="insight-card" id="insight-box">
+                    <div class="insight-title">💡 幾何特性解析</div>
+                    <div class="insight-text" id="lbl-insight">拖曳頂點以觀察幾何變化。</div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-col">
+                        <div class="stat-vertex" style="color: #ff5252;">A</div>
+                        <div class="stat-val" id="stat-ang-a">∠A: -</div>
+                        <div class="stat-val" id="stat-len-a">a: -</div>
+                    </div>
+                    <div class="stat-col">
+                        <div class="stat-vertex" style="color: #4caf50;">B</div>
+                        <div class="stat-val" id="stat-ang-b">∠B: -</div>
+                        <div class="stat-val" id="stat-len-b">b: -</div>
+                    </div>
+                    <div class="stat-col">
+                        <div class="stat-vertex" style="color: #2196f3;">C</div>
+                        <div class="stat-val" id="stat-ang-c">∠C: -</div>
+                        <div class="stat-val" id="stat-len-c">c: -</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toggles -->
+            <div class="panel">
+                <div class="panel-title">顯示控制 (Visibility Controls)</div>
+                <div class="toggles-grid">
+                    <div class="toggle-group">
+                        <label class="toggle-label toggle-g">
+                            <input type="checkbox" id="chk-g" checked>
+                            <span class="checkmark"></span>
+                            重心 (G) & 中線
+                        </label>
+                        <label class="toggle-label toggle-h">
+                            <input type="checkbox" id="chk-h" checked>
+                            <span class="checkmark"></span>
+                            垂心 (H) & 高線
+                        </label>
+                        <label class="toggle-label toggle-h" style="padding-left: 28px;">
+                            <input type="checkbox" id="chk-h-ext" checked>
+                            <span class="checkmark"></span>
+                            高線延伸虛線
+                        </label>
+                    </div>
+                    <div class="toggle-group">
+                        <label class="toggle-label toggle-o">
+                            <input type="checkbox" id="chk-o" checked>
+                            <span class="checkmark"></span>
+                            外心 (O) & 中垂線
+                        </label>
+                        <label class="toggle-label toggle-o" style="padding-left: 28px;">
+                            <input type="checkbox" id="chk-o-circle" checked>
+                            <span class="checkmark"></span>
+                            外接圓
+                        </label>
+                        <label class="toggle-label toggle-i">
+                            <input type="checkbox" id="chk-i" checked>
+                            <span class="checkmark"></span>
+                            內心 (I) & 角平分線
+                        </label>
+                        <label class="toggle-label toggle-i" style="padding-left: 28px;">
+                            <input type="checkbox" id="chk-i-circle" checked>
+                            <span class="checkmark"></span>
+                            內切圓
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Presets -->
+            <div class="panel">
+                <div class="panel-title">預設形狀 (Presets)</div>
+                <div class="presets-grid">
+                    <button onclick="animateToPreset('acute')">銳角三角形 (Acute)</button>
+                    <button onclick="animateToPreset('right')">直角三角形 (Right)</button>
+                    <button onclick="animateToPreset('obtuse')">鈍角三角形 (Obtuse)</button>
+                    <button onclick="animateToPreset('isosceles')">等腰三角形 (Isosceles)</button>
+                    <button onclick="animateToPreset('equilateral')">等邊三角形 (Equilateral)</button>
+                    <button onclick="animateToPreset('scalene')">不等邊三角形 (Scalene)</button>
+                </div>
+            </div>
+
+        </aside>
+    </div>
+
+    <script>
+        /**
+         * 幾何計算與視覺化核心
+         */
+        const canvas = document.getElementById('geometryCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+
+        // 內部解析度，確保計算不受視窗比例影響
+        let C_WIDTH = 1200;
+        let C_HEIGHT = 800;
+        
+        // 頂點狀態 (初始為不等邊銳角三角形)
+        let pts = [
+            { x: 600, y: 150, id: 'A', color: '#ff5252' }, // A
+            { x: 300, y: 650, id: 'B', color: '#4caf50' }, // B
+            { x: 900, y: 550, id: 'C', color: '#2196f3' }  // C
+        ];
+
+        // 動畫狀態
+        let animating = false;
+        let targetPts = [];
+        let animProgress = 0;
+
+        // 互動狀態
+        let draggingIdx = -1;
+        let hoverIdx = -1;
+        
+        const colors = {
+            triangle: '#e2e8f0',
+            g: '#ff9800',
+            h: '#2196f3',
+            o: '#4caf50',
+            i: '#9c27b0'
+        };
+
+        // DOM Elements
+        const ui = {
+            chkG: document.getElementById('chk-g'),
+            chkH: document.getElementById('chk-h'),
+            chkHExt: document.getElementById('chk-h-ext'),
+            chkO: document.getElementById('chk-o'),
+            chkOCircle: document.getElementById('chk-o-circle'),
+            chkI: document.getElementById('chk-i'),
+            chkICircle: document.getElementById('chk-i-circle'),
+            lblClass: document.getElementById('lbl-classification'),
+            lblInsight: document.getElementById('lbl-insight'),
+            insightBox: document.getElementById('insight-box'),
+            tooltip: document.getElementById('coord-tooltip'),
+            stats: {
+                angA: document.getElementById('stat-ang-a'),
+                angB: document.getElementById('stat-ang-b'),
+                angC: document.getElementById('stat-ang-c'),
+                lenA: document.getElementById('stat-len-a'),
+                lenB: document.getElementById('stat-len-b'),
+                lenC: document.getElementById('stat-len-c')
+            }
+        };
+
+        // 監聽控制項改變，觸發重繪
+        Object.values(ui).forEach(el => {
+            if (el && el.type === 'checkbox') {
+                el.addEventListener('change', draw);
+            }
+        });
+
+        // 初始化 Resize
+        function resizeCanvas() {
+            // 使用 CSS 尺寸，保持高解析度渲染
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            
+            // 邏輯尺寸為 CSS 尺寸
+            C_WIDTH = rect.width;
+            C_HEIGHT = rect.height;
+            draw();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // 基本幾何數學函數
+        const dist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const rad2deg = rad => rad * 180 / Math.PI;
+
+        function getTriangleData() {
+            const A = pts[0], B = pts[1], C = pts[2];
+            const a = dist(B, C), b = dist(A, C), c = dist(A, B);
+            
+            // 避免除以 0 或退化三角形
+            if (a < 1 || b < 1 || c < 1) return null;
+
+            // 角度 (餘弦定理)
+            const angA = Math.acos((b*b + c*c - a*a) / (2*b*c));
+            const angB = Math.acos((a*a + c*c - b*b) / (2*a*c));
+            const angC = Math.PI - angA - angB;
+
+            // 重心 (Centroid) - G
+            const G = { x: (A.x + B.x + C.x) / 3, y: (A.y + B.y + C.y) / 3 };
+
+            // 內心 (Incenter) - I
+            const perimeter = a + b + c;
+            const I = {
+                x: (a*A.x + b*B.x + c*C.x) / perimeter,
+                y: (a*A.y + b*B.y + c*C.y) / perimeter
+            };
+            // 內切圓半徑 (Area / semiperimeter)
+            const s = perimeter / 2;
+            const area = Math.sqrt(s * (s - a) * (s - b) * (s - c));
+            const r = area / s;
+
+            // 外心 (Circumcenter) - O
+            const D = 2 * (A.x*(B.y - C.y) + B.x*(C.y - A.y) + C.x*(A.y - B.y));
+            let O = {x: 0, y: 0};
+            let R = 0;
+            if (Math.abs(D) > 0.001) {
+                O.x = ((A.x*A.x + A.y*A.y)*(B.y - C.y) + (B.x*B.x + B.y*B.y)*(C.y - A.y) + (C.x*C.x + C.y*C.y)*(A.y - B.y)) / D;
+                O.y = ((A.x*A.x + A.y*A.y)*(C.x - B.x) + (B.x*B.x + B.y*B.y)*(A.x - C.x) + (C.x*C.x + C.y*C.y)*(B.x - A.x)) / D;
+                R = dist(O, A);
+            }
+
+            // 垂心 (Orthocenter) - H
+            // 歐拉線性質: H = 3G - 2O
+            const H = {
+                x: 3 * G.x - 2 * O.x,
+                y: 3 * G.y - 2 * O.y
+            };
+
+            return { A, B, C, a, b, c, angA, angB, angC, G, I, r, O, R, H };
+        }
+
+        // 求點 P 在線段 V1-V2 所在直線上的投影點 (垂足)
+        function getFoot(P, V1, V2) {
+            const dx = V2.x - V1.x;
+            const dy = V2.y - V1.y;
+            const mag = dx*dx + dy*dy;
+            if (mag === 0) return V1;
+            const u = ((P.x - V1.x)*dx + (P.y - V1.y)*dy) / mag;
+            return { x: V1.x + u*dx, y: V1.y + u*dy };
+        }
+
+        // 找角平分線與對邊的交點 (按邊長比例分對邊)
+        function getAngleBisectorPoint(Vertex, V1, V2, len1, len2) {
+            const ratio = len1 / (len1 + len2);
+            return {
+                x: V2.x + ratio * (V1.x - V2.x),
+                y: V2.y + ratio * (V1.y - V2.y)
+            };
+        }
+
+        function drawLine(p1, p2, color, width = 1.5, dash = []) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.setLineDash(dash);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawPoint(p, color, label, radius = 5) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            if (label) {
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 14px "Segoe UI"';
+                ctx.fillText(label, p.x + 8, p.y - 8);
+            }
+        }
+
+        // 核心渲染迴圈
+        function draw() {
+            ctx.clearRect(0, 0, C_WIDTH, C_HEIGHT);
+
+            const data = getTriangleData();
+            if (!data) return;
+
+            const { A, B, C, a, b, c, G, I, r, O, R, H } = data;
+
+            // 1. 繪製三角形主體
+            ctx.beginPath();
+            ctx.moveTo(A.x, A.y);
+            ctx.lineTo(B.x, B.y);
+            ctx.lineTo(C.x, C.y);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.fill();
+            ctx.strokeStyle = colors.triangle;
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // ================= 2. 輔助線與圓 =================
+
+            // 重心 (G) & 中線
+            if (ui.chkG.checked) {
+                const M_BC = { x: (B.x+C.x)/2, y: (B.y+C.y)/2 };
+                const M_AC = { x: (A.x+C.x)/2, y: (A.y+C.y)/2 };
+                const M_AB = { x: (A.x+B.x)/2, y: (A.y+B.y)/2 };
+                drawLine(A, M_BC, colors.g, 1);
+                drawLine(B, M_AC, colors.g, 1);
+                drawLine(C, M_AB, colors.g, 1);
+            }
+
+            // 內心 (I) & 角平分線 & 內切圓
+            if (ui.chkI.checked) {
+                const D_A = getAngleBisectorPoint(A, B, C, c, b);
+                const D_B = getAngleBisectorPoint(B, A, C, c, a);
+                const D_C = getAngleBisectorPoint(C, A, B, b, a);
+                drawLine(A, D_A, colors.i, 1);
+                drawLine(B, D_B, colors.i, 1);
+                drawLine(C, D_C, colors.i, 1);
+                
+                if (ui.chkICircle.checked) {
+                    ctx.beginPath();
+                    ctx.arc(I.x, I.y, r, 0, Math.PI * 2);
+                    ctx.strokeStyle = colors.i;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            }
+
+            // 外心 (O) & 中垂線 & 外接圓
+            if (ui.chkO.checked) {
+                // 中垂線繪製: 找出中點，並畫出過 O 的線段
+                const M_BC = { x: (B.x+C.x)/2, y: (B.y+C.y)/2 };
+                const M_AC = { x: (A.x+C.x)/2, y: (A.y+C.y)/2 };
+                const M_AB = { x: (A.x+B.x)/2, y: (A.y+B.y)/2 };
+                
+                // 畫一小段中垂線，從中點連向外心 (若鈍角則延長)
+                drawLine(M_BC, O, colors.o, 1, [4, 4]);
+                drawLine(M_AC, O, colors.o, 1, [4, 4]);
+                drawLine(M_AB, O, colors.o, 1, [4, 4]);
+
+                if (ui.chkOCircle.checked) {
+                    ctx.beginPath();
+                    ctx.arc(O.x, O.y, R, 0, Math.PI * 2);
+                    ctx.strokeStyle = colors.o;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            }
+
+            // 垂心 (H) & 高線
+            if (ui.chkH.checked) {
+                const F_A = getFoot(A, B, C);
+                const F_B = getFoot(B, A, C);
+                const F_C = getFoot(C, A, B);
+
+                // 如果要畫延伸虛線
+                if (ui.chkHExt.checked) {
+                    // 從頂點連到 H (設為虛線，這樣在外部的部分會是虛線)
+                    drawLine(A, H, colors.h, 1, [4, 4]);
+                    drawLine(B, H, colors.h, 1, [4, 4]);
+                    drawLine(C, H, colors.h, 1, [4, 4]);
+                    // 為了覆蓋三角形內部為實線，再畫一次實線到垂足
+                    drawLine(A, F_A, colors.h, 1.5);
+                    drawLine(B, F_B, colors.h, 1.5);
+                    drawLine(C, F_C, colors.h, 1.5);
+                    
+                    // 延長底邊以交於垂足 (鈍角時)
+                    drawLine(B, F_A, 'rgba(255,255,255,0.3)', 1, [2, 2]);
+                    drawLine(C, F_A, 'rgba(255,255,255,0.3)', 1, [2, 2]);
+                    drawLine(A, F_B, 'rgba(255,255,255,0.3)', 1, [2, 2]);
+                    drawLine(C, F_B, 'rgba(255,255,255,0.3)', 1, [2, 2]);
+                    drawLine(A, F_C, 'rgba(255,255,255,0.3)', 1, [2, 2]);
+                    drawLine(B, F_C, 'rgba(255,255,255,0.3)', 1, [2, 2]);
+                } else {
+                    drawLine(A, F_A, colors.h, 1.5);
+                    drawLine(B, F_B, colors.h, 1.5);
+                    drawLine(C, F_C, colors.h, 1.5);
+                }
+            }
+
+            // ================= 3. 繪製頂點與四心 =================
+            if (ui.chkG.checked) drawPoint(G, colors.g, 'G', 6);
+            if (ui.chkO.checked) drawPoint(O, colors.o, 'O', 6);
+            if (ui.chkI.checked) drawPoint(I, colors.i, 'I', 6);
+            if (ui.chkH.checked) drawPoint(H, colors.h, 'H', 6);
+
+            pts.forEach((p, i) => {
+                const radius = (i === hoverIdx || i === draggingIdx) ? 10 : 8;
+                drawPoint(p, p.color, p.id, radius);
+            });
+
+            updateDashboard(data);
+        }
+
+        // 更新數據與洞察面板
+        function updateDashboard(data) {
+            const { angA, angB, angC, a, b, c } = data;
+            
+            const degs = [rad2deg(angA), rad2deg(angB), rad2deg(angC)];
+            const maxDeg = Math.max(...degs);
+            const isRight = degs.some(d => Math.abs(d - 90) < 1);
+            const isObtuse = maxDeg > 91;
+            const isAcute = !isRight && !isObtuse;
+
+            const sides = [a, b, c].sort((x, y) => x - y);
+            const isEquilateral = (sides[2] - sides[0]) < 2;
+            const isIsosceles = !isEquilateral && ((sides[1]-sides[0]<2) || (sides[2]-sides[1]<2));
+            const isScalene = !isEquilateral && !isIsosceles;
+
+            let angleStr = isRight ? "直角" : (isObtuse ? "鈍角" : "銳角");
+            let sideStr = isEquilateral ? "等邊" : (isIsosceles ? "等腰" : "不等邊");
+            
+            // 例外: 等邊三角形必然是銳角
+            let classStr = isEquilateral ? "正三角形 (等邊銳角)" : `${angleStr}${sideStr}三角形`;
+            ui.lblClass.textContent = `當前為：${classStr}`;
+
+            // 動態洞察 (Insights)
+            let insightHtml = "";
+            let borderColor = colors.triangle;
+            if (isEquilateral) {
+                insightHtml = "<b>完美對稱：</b>重心(G)、垂心(H)、外心(O)、內心(I) <b>四心重合</b>於同一點。這也是九點圓的中心。";
+                borderColor = colors.g;
+            } else if (isIsosceles) {
+                insightHtml = "<b>等腰對稱：</b>四心皆<b>共線</b>於對稱軸上 (此線即為歐拉線與頂角平分線的重合處)。";
+                borderColor = colors.i;
+            } else if (isRight) {
+                insightHtml = "<b>直角特性：</b><br>• <b>垂心 (H)</b> 恰好落在直角的頂點上。<br>• <b>外心 (O)</b> 恰好落在斜邊的中點上。";
+                borderColor = colors.h;
+            } else if (isObtuse) {
+                insightHtml = "<b>鈍角特性：</b><br>• <b>垂心 (H)</b> 與 <b>外心 (O)</b> 皆位於三角形的<b>外部</b>。<br>• 九點圓中心介於外心與垂心之間，亦可能在外部。";
+                borderColor = '#f44336';
+            } else {
+                insightHtml = "<b>銳角特性：</b>所有的心 (G, H, O, I) 皆乖乖地待在三角形<b>內部</b>。外心(O)、重心(G)、垂心(H) 三點共線，稱為<b>歐拉線 (Euler Line)</b>。";
+                borderColor = colors.o;
+            }
+
+            ui.insightBox.style.borderColor = borderColor;
+            ui.insightBox.style.background = `${borderColor}11`; // 加點透明背景
+            ui.lblInsight.innerHTML = insightHtml;
+
+            // Stats Update
+            ui.stats.angA.textContent = `∠A: ${degs[0].toFixed(1)}°`;
+            ui.stats.lenA.textContent = `a: ${a.toFixed(0)}`;
+            ui.stats.angB.textContent = `∠B: ${degs[1].toFixed(1)}°`;
+            ui.stats.lenB.textContent = `b: ${b.toFixed(0)}`;
+            ui.stats.angC.textContent = `∠C: ${degs[2].toFixed(1)}°`;
+            ui.stats.lenC.textContent = `c: ${c.toFixed(0)}`;
+        }
+
+        // ================= 動畫與預設形狀 =================
+        function animateToPreset(type) {
+            if (animating) return;
+            
+            // 基礎基準點
+            const cx = C_WIDTH / 2 - 100; // 留給右邊面板一點空間
+            const cy = C_HEIGHT / 2;
+
+            let targets = [];
+            switch(type) {
+                case 'acute':
+                    targets = [
+                        {x: cx, y: cy - 250},
+                        {x: cx - 250, y: cy + 150},
+                        {x: cx + 300, y: cy + 100}
+                    ];
+                    break;
+                case 'right':
+                    targets = [
+                        {x: cx - 150, y: cy - 200},
+                        {x: cx - 150, y: cy + 200},
+                        {x: cx + 250, y: cy + 200}
+                    ];
+                    break;
+                case 'obtuse':
+                    targets = [
+                        {x: cx - 350, y: cy - 50},
+                        {x: cx + 50, y: cy + 200},
+                        {x: cx + 350, y: cy + 200}
+                    ];
+                    break;
+                case 'isosceles':
+                    targets = [
+                        {x: cx, y: cy - 250},
+                        {x: cx - 200, y: cy + 200},
+                        {x: cx + 200, y: cy + 200}
+                    ];
+                    break;
+                case 'equilateral':
+                    const side = 400;
+                    const h = side * Math.sqrt(3) / 2;
+                    targets = [
+                        {x: cx, y: cy + 150 - h},
+                        {x: cx - 200, y: cy + 150},
+                        {x: cx + 200, y: cy + 150}
+                    ];
+                    break;
+                case 'scalene':
+                    targets = [
+                        {x: cx - 100, y: cy - 200},
+                        {x: cx - 300, y: cy + 150},
+                        {x: cx + 300, y: cy - 50}
+                    ];
+                    break;
+            }
+
+            // 保存原始點為起點
+            targetPts = targets;
+            animProgress = 0;
+            animating = true;
+            animationLoop();
+        }
+
+        function animationLoop() {
+            if (!animating) return;
+            animProgress += 0.04; // 動畫速度
+
+            let allDone = true;
+            for (let i = 0; i < 3; i++) {
+                pts[i].x = lerp(pts[i].x, targetPts[i].x, 0.08); // 加上easing
+                pts[i].y = lerp(pts[i].y, targetPts[i].y, 0.08);
+                
+                if (dist(pts[i], targetPts[i]) > 1) {
+                    allDone = false;
+                }
+            }
+
+            draw();
+
+            if (animProgress >= 1 || allDone) {
+                // 強制貼齊
+                for (let i = 0; i < 3; i++) {
+                    pts[i].x = targetPts[i].x;
+                    pts[i].y = targetPts[i].y;
+                }
+                animating = false;
+                draw();
+            } else {
+                requestAnimationFrame(animationLoop);
+            }
+        }
+
+        // ================= 互動 (Mouse / Touch) =================
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            // 考慮裝置像素比與 CSS 縮放
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+            
+            return {
+                x: (clientX - rect.left) * (C_WIDTH / rect.width),
+                y: (clientY - rect.top) * (C_HEIGHT / rect.height)
+            };
+        }
+
+        function onPointerDown(e) {
+            if (animating) return;
+            const pos = getMousePos(e);
+            
+            // 尋找點擊的頂點
+            for (let i = 0; i < pts.length; i++) {
+                if (dist(pos, pts[i]) < 30) { // 觸控容錯半徑
+                    draggingIdx = i;
+                    break;
+                }
+            }
+        }
+
+        function onPointerMove(e) {
+            if (animating) return;
+            const pos = getMousePos(e);
+
+            if (draggingIdx !== -1) {
+                // 限制在畫布範圍內
+                pts[draggingIdx].x = Math.max(20, Math.min(C_WIDTH - 20, pos.x));
+                pts[draggingIdx].y = Math.max(20, Math.min(C_HEIGHT - 20, pos.y));
+                
+                // 顯示浮動坐標
+                ui.tooltip.style.display = 'block';
+                ui.tooltip.style.left = (e.clientX + 15) + 'px';
+                ui.tooltip.style.top = (e.clientY - 25) + 'px';
+                ui.tooltip.textContent = `${pts[draggingIdx].id} (${Math.round(pts[draggingIdx].x)}, ${Math.round(pts[draggingIdx].y)})`;
+
+                draw();
+            } else {
+                // Hover 效果
+                let foundHover = -1;
+                for (let i = 0; i < pts.length; i++) {
+                    if (dist(pos, pts[i]) < 20) {
+                        foundHover = i;
+                        break;
+                    }
+                }
+                if (foundHover !== hoverIdx) {
+                    hoverIdx = foundHover;
+                    canvas.style.cursor = hoverIdx !== -1 ? 'grab' : 'default';
+                    draw();
+                }
+            }
+        }
+
+        function onPointerUp() {
+            if (draggingIdx !== -1) {
+                draggingIdx = -1;
+                ui.tooltip.style.display = 'none';
+                draw();
+            }
+        }
+
+        canvas.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); onPointerDown(e); }, {passive: false});
+        window.addEventListener('touchmove', (e) => { if(draggingIdx !== -1) e.preventDefault(); onPointerMove(e); }, {passive: false});
+        window.addEventListener('touchend', onPointerUp);
+
+        // 初始化
+        window.onload = () => {
+            resizeCanvas();
+            // 先播放個小動畫吸引注意
+            setTimeout(() => animateToPreset('scalene'), 500);
+        };
+    </script>
+</body>
+</html>
